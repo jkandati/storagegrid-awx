@@ -1,0 +1,160 @@
+---
+- hosts: localhost
+  vars:
+    grid_admin_base_url: https://sggmi-dev.dev.ausngs.netapp.au/api/v3
+    grid_user: root
+    grid_pass: netapp123
+    tenant_user: root
+    tenant_pass: netapp01
+  gather_facts: no
+  tasks:
+  - name: Get grid authorization token
+    uri:
+      url: "{{ grid_admin_base_url }}/authorize"
+      method: POST
+      body: {
+        "username": "{{ grid_user }}",
+        "password": "{{ grid_pass }}",
+        "cookie": false,
+        "csrfToken": false
+      }
+      body_format: json
+      validate_certs: false
+    register: auth
+    no_log: false
+    tags:
+      - account
+  - name: print auth token
+    debug:
+      msg: "{{ auth.json.data }}"
+
+  - name: create a sg tenant
+    netapp.storagegrid.na_sg_grid_account:
+      api_url: "{{ grid_admin_base_url }}"
+      auth_token: "{{ auth.json.data }}"
+      validate_certs: false
+      state: present
+      name: Telstra Corp
+      protocol: s3
+      management: true
+      use_own_identity_source: false
+      allow_platform_services: false
+      password: "{{ tenant_pass }}"
+      # quota_bytes: 0
+      quota_bytes: 1099511627776
+    register: account
+    tags: 
+      - account
+
+  - name: Get user authorization token
+    uri:
+      url: "{{ grid_admin_base_url }}/authorize"
+      method: POST
+      body: {
+        "accountId": "{{ account.data.id }}",
+        "username": "{{ tenant_user }}",
+        "password": "{{ tenant_pass }}",
+        "cookie": false,
+        "csrfToken": false
+      }
+      body_format: json
+      validate_certs: false
+    register: auth
+    no_log: false
+    tags:
+      - bucket
+  - name: print auth token
+    debug:
+      msg: "{{ auth.json.data }}"
+
+  - name: create a restricted RW group
+    netapp.storagegrid.na_sg_org_group:
+      api_url: "{{ grid_admin_base_url }}"
+      auth_token: "{{ auth.json.data }}"
+      validate_certs: false
+      state: present
+      display_name: "RW Telstra Corp Engineering"
+      unique_name: group/rw_telstra_corp_eng
+      management_policy:
+        manage_all_containers: true
+        manage_endpoints: true
+        manage_own_s3_credentials: false
+        root_access: false
+      s3_policy: {"Statement":[{"Effect":"Allow","Action":"s3:*","Resource":"arn:aws:s3:::telstra*/*"}]}
+    tags:
+      - bucket
+
+  - name: create a RO group
+    netapp.storagegrid.na_sg_org_group:
+      api_url: "{{ grid_admin_base_url }}"
+      auth_token: "{{ auth.json.data }}"
+      validate_certs: false
+      state: present
+      display_name: "RO Telstra Corp All"
+      unique_name: group/ro_telstra_corp_all
+      management_policy:
+        manage_all_containers: true
+        manage_endpoints: true
+        manage_own_s3_credentials: false
+        root_access: false
+      s3_policy: { "Statement": [ { "Effect": "Allow", "Action": [ "s3:ListAllMyBuckets", "s3:ListBucket", "s3:ListBucketVersions", "s3:GetObject", "s3:GetObjectTagging", "s3:GetObjectVersion", "s3:GetObjectVersionTagging" ], "Resource": "arn:aws:s3:::*" } ] }
+
+  - name: create user1
+    netapp.storagegrid.na_sg_org_user:
+      api_url: "{{ grid_admin_base_url }}"
+      auth_token: "{{ auth.json.data }}"
+      validate_certs: false
+      state: present
+      full_name: "Bob"
+      unique_name: user/bob
+      member_of: "group/rw_telstra_corp_eng,group/ro_telstra_corp_all"
+
+  - name: create user2
+    netapp.storagegrid.na_sg_org_user:
+      api_url: "{{ grid_admin_base_url }}"
+      auth_token: "{{ auth.json.data }}"
+      validate_certs: false
+      state: present
+      full_name: "Fred"
+      unique_name: user/fred
+      member_of: "group/ro_telstra_corp_all,group/rw_telstra_corp_eng"
+
+  - name: create a s3 key for user1
+    netapp.storagegrid.na_sg_org_user_s3_key:
+      api_url: "{{ grid_admin_base_url }}"
+      auth_token: "{{ auth.json.data }}"
+      validate_certs: false
+      state: present
+      unique_user_name: user/bob
+
+  - name: create a s3 key for user2
+    netapp.storagegrid.na_sg_org_user_s3_key:
+      api_url: "{{ grid_admin_base_url }}"
+      auth_token: "{{ auth.json.data }}"
+      validate_certs: false
+      state: present
+      unique_user_name: user/fred
+
+  - name: create a s3 key for root
+    netapp.storagegrid.na_sg_org_user_s3_key:
+      api_url: "{{ grid_admin_base_url }}"
+      auth_token: "{{ auth.json.data }}"
+      validate_certs: false
+      state: present
+      unique_user_name: root
+
+  - name: create a s3 bucket
+    netapp.storagegrid.na_sg_org_container:
+      api_url: "{{ grid_admin_base_url }}"
+      auth_token: "{{ auth.json.data }}"
+      validate_certs: false
+      state: present
+      name: telstra-eng-data
+
+  - name: create a s3 bucket
+    netapp.storagegrid.na_sg_org_container:
+      api_url: "{{ grid_admin_base_url }}"
+      auth_token: "{{ auth.json.data }}"
+      validate_certs: false
+      state: present
+      name: telstra-media

@@ -1,0 +1,41 @@
+---
+- hosts: localhost
+  vars:
+    grid_admin_base_url: https://sggmi-dev.dev.ausngs.netapp.au/api/v3
+    grid_user: root
+    grid_pass: netapp01
+  gather_facts: no
+  tasks:
+  - name: Get user authorization token
+    uri:
+      url: "{{ grid_admin_base_url }}/authorize"
+      method: POST
+      body: {
+        "accountId": "46746482220000154865",
+        "username": "{{ grid_user }}",
+        "password": "{{ grid_pass }}",
+        "cookie": false,
+        "csrfToken": false
+      }
+      body_format: json
+      validate_certs: false
+    register: auth
+    no_log: false
+  - name: print auth token
+    debug:
+      msg: "{{ auth.json.data }}"
+
+  - name: create a group
+    netapp.storagegrid.na_sg_org_group:
+      api_url: "{{ grid_admin_base_url }}"
+      auth_token: "{{ auth.json.data }}"
+      validate_certs: false
+      state: present
+      display_name: ansiblegroup100
+      unique_name: group/ansiblegroup100
+      management_policy:
+        manage_all_containers: true
+        manage_endpoints: true
+        manage_own_s3_credentials: false
+        root_access: false
+      s3_policy: {"Statement":[{"Effect":"Deny","Action":"s3:*","Resource":"arn:aws:s3:::*"}]}

@@ -1,0 +1,10 @@
+---
+- hosts: all
+  tasks:
+  - name: update DNS servers
+    nac_sg_grid_dns:
+      api_url: "{{ grid_admin_base_url }}"
+      auth_token: "{{ auth.json.data }}"
+      validate_certs: false
+      state: present
+      dns_servers: "1.1.1.1,8.8.8.8"

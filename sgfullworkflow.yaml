@@ -1,0 +1,107 @@
+---
+- hosts: localhost
+  vars:
+    grid_admin_base_url: https://sggmi-dev.dev.ausngs.netapp.au/api/v3
+    grid_user: root
+    grid_pass: netapp123
+    tenant_user: root
+    tenant_pass: netapp01
+  gather_facts: no
+  tasks:
+  - name: Get grid authorization token
+    uri:
+      url: "{{ grid_admin_base_url }}/authorize"
+      method: POST
+      body: {
+        "username": "{{ grid_user }}",
+        "password": "{{ grid_pass }}",
+        "cookie": false,
+        "csrfToken": false
+      }
+      body_format: json
+      validate_certs: false
+    register: auth
+    no_log: false
+    tags:
+      - account
+  - name: print auth token
+    debug:
+      msg: "{{ auth.json.data }}"
+
+  - name: create a sg tenant
+    netapp.storagegrid.na_sg_grid_account:
+      api_url: "{{ grid_admin_base_url }}"
+      auth_token: "{{ auth.json.data }}"
+      validate_certs: false
+      state: present
+      name: ansible-sg-demo1
+      protocol: s3
+      management: true
+      use_own_identity_source: false
+      allow_platform_services: false
+      password: "{{ tenant_pass }}"
+      #quota_bytes: 0
+      quota_bytes: 107400000000
+    register: account
+    tags: 
+      - account
+
+  - name: Get user authorization token
+    uri:
+      url: "{{ grid_admin_base_url }}/authorize"
+      method: POST
+      body: {
+        "accountId": "{{ account.data.id }}",
+        "username": "{{ tenant_user }}",
+        "password": "{{ tenant_pass }}",
+        "cookie": false,
+        "csrfToken": false
+      }
+      body_format: json
+      validate_certs: false
+    register: auth
+    no_log: false
+  - name: print auth token
+    debug:
+      msg: "{{ auth.json.data }}"
+
+  - name: create a group
+    netapp.storagegrid.na_sg_org_group:
+      api_url: "{{ grid_admin_base_url }}"
+      auth_token: "{{ auth.json.data }}"
+      validate_certs: false
+      state: present
+      display_name: ansible-sg-demo-group1
+      unique_name: group/ansible-sg-demo-group1
+      management_policy:
+        manage_all_containers: true
+        manage_endpoints: true
+        manage_own_s3_credentials: false
+        root_access: false
+      s3_policy: {"Statement":[{"Effect":"Allow","Action":"s3:*","Resource":"arn:aws:s3:::*"}]}
+
+  - name: create a user
+    netapp.storagegrid.na_sg_org_user:
+      api_url: "{{ grid_admin_base_url }}"
+      auth_token: "{{ auth.json.data }}"
+      validate_certs: false
+      state: present
+      full_name: ansible-sg-demo-user1
+      unique_name: user/ansible-sg-demo-user1
+      member_of: "group/ansible-sg-demo-group1"
+
+  - name: create a s3 key
+    netapp.storagegrid.na_sg_org_user_s3_key:
+      api_url: "{{ grid_admin_base_url }}"
+      auth_token: "{{ auth.json.data }}"
+      validate_certs: false
+      state: present
+      unique_user_name: user/ansible-sg-demo-user1
+
+  - name: create a s3 bucket
+    netapp.storagegrid.na_sg_org_container:
+      api_url: "{{ grid_admin_base_url }}"
+      auth_token: "{{ auth.json.data }}"
+      validate_certs: false
+      state: present
+      name: ansible-sg-demo-bucket1
