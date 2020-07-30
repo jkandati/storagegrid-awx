@@ -26,8 +26,8 @@
       auth_token: "{{ auth.json.data }}"
       validate_certs: false
       state: present
-      display_name: ansiblegroup100
-      unique_name: group/ansiblegroup100
+      display_name: 
+      unique_name: 
       management_policy:
         tenant_accounts: true
         maintenance: true
