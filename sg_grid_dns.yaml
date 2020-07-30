@@ -1,9 +1,9 @@
 ---
 - hosts: localhost
   vars:
-    grid_admin_base_url: https://10.193.92.230/
+    grid_admin_base_url: https://10.61.185.37/
     grid_user: root
-    grid_pass: Netapp123!
+    grid_pass: NetApp!23
   gather_facts: no
   tasks:
   - name: Get user authorization token
@@ -20,11 +20,10 @@
       validate_certs: false
     register: auth
     no_log: false
-    
   - name: print auth token
     debug:
       msg: "{{ auth.json.data }}"
-      
+
   - name: update DNS servers
     netapp.storagegrid.nac_sg_grid_dns:
       api_url: "{{ grid_admin_base_url }}"
