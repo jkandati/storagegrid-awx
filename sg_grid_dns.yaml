@@ -1,5 +1,5 @@
 ---
-- hosts: localhost
+- hosts: all
   vars:
     grid_admin_base_url: https://10.61.185.37/
     grid_user: root
