@@ -26,8 +26,6 @@
       auth_token: "{{ auth.json.data }}"
       validate_certs: false
       state: present
-      display_name: 
-      unique_name: 
       management_policy:
         tenant_accounts: true
         maintenance: true
